@@ -1,6 +1,6 @@
 // 1. Firebase Configuration (Realtime Database Online)
 const firebaseConfig = {
-    databaseURL: "https://smart-stock-default-rtdb.europe-west1.firebasedatabase.app"
+    databaseURL: "https://smart-stock-1c2a9-default-rtdb.firebaseio.com"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
