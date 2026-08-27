@@ -1,215 +1,275 @@
-// Firebase Configuration
+// 1. Firebase Configuration (Realtime Database Online)
 const firebaseConfig = {
-    databaseURL: "https://smart-stock-1c2a9-default-rtdb.firebaseio.com"
+    databaseURL: "https://smart-stock-default-rtdb.europe-west1.firebasedatabase.app"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const DB_REF = db.ref('stock_data');
 
-// Global State
-let products = [];
-let authData = { user: "admin", pass: "123456" };
+// 2. Auth Configuration
+const AUTH_USER = "admin";
+const AUTH_PASS = "123456";
 
-// DOM Elements
 const loginForm = document.getElementById('login-form');
 const loginContainer = document.getElementById('login-container');
 const appContainer = document.getElementById('app-container');
 const loginError = document.getElementById('login-error');
-const logoutBtn = document.getElementById('logout-btn');
 
-// Load Auth Data & Products from Firebase
-DB_REF.child('auth').on('value', (snapshot) => {
-    if (snapshot.exists()) {
-        authData = snapshot.val();
-    } else {
-        DB_REF.child('auth').set(authData);
+window.addEventListener('DOMContentLoaded', () => {
+    if (sessionStorage.getItem('isLoggedIn') === 'true') {
+        showApp();
     }
 });
 
-DB_REF.child('products').on('value', (snapshot) => {
-    products = [];
-    if (snapshot.exists()) {
-        const data = snapshot.val();
-        for (let key in data) {
-            products.push({ id: key, ...data[key] });
-        }
-    }
-    renderProducts();
-    updateDashboard();
-    populateMovementDropdown();
-});
-
-// Login Process
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const u = document.getElementById('username').value;
-    const p = document.getElementById('password').value;
+    const userInput = document.getElementById('username').value;
+    const passInput = document.getElementById('password').value;
 
-    if (u === authData.user && p === authData.pass) {
-        loginContainer.classList.add('d-none');
-        appContainer.classList.remove('d-none');
+    if (userInput === AUTH_USER && passInput === AUTH_PASS) {
+        sessionStorage.setItem('isLoggedIn', 'true');
+        showApp();
     } else {
-        loginError.classList.remove('d-none');
+        loginError.innerText = "Nom d'utilisateur ou mot de passe incorrect !";
     }
 });
 
-// Logout
-logoutBtn.addEventListener('click', () => {
-    appContainer.classList.add('d-none');
-    loginContainer.classList.remove('d-none');
-    document.getElementById('username').value = '';
-    document.getElementById('password').value = '';
-});
-
-// Navigation
-document.querySelectorAll('.sidebar .nav-link').forEach(link => {
-    link.addEventListener('click', (e) => {
-        e.preventDefault();
-        document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
-        document.querySelectorAll('.content-section').forEach(s => s.classList.add('d-none'));
-        
-        link.classList.add('active');
-        const targetSection = link.getAttribute('data-section');
-        document.getElementById(`sec-${targetSection}`).classList.remove('d-none');
-    });
-});
-
-// Render Products Table
-function renderProducts() {
-    const tbody = document.getElementById('products-table-body');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-
-    products.forEach(p => {
-        const tr = document.createElement('tr');
-        const isLow = p.qty < 5;
-        tr.innerHTML = `
-            <td><strong>${p.ref}</strong></td>
-            <td>${p.name}</td>
-            <td>${parseFloat(p.price).toFixed(2)} DH</td>
-            <td><span class="badge ${isLow ? 'bg-danger' : 'bg-primary'}">${p.qty}</span></td>
-            <td><span class="badge ${isLow ? 'bg-warning text-dark' : 'bg-success'}">${isLow ? 'Alerte Stock' : 'Disponible'}</span></td>
-            <td>
-                <button class="btn btn-sm btn-outline-primary me-1" onclick="editProduct('${p.id}')"><i class="fa-solid fa-pen"></i></button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteProduct('${p.id}')"><i class="fa-solid fa-trash"></i></button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
+function showApp() {
+    loginContainer.style.display = 'none';
+    appContainer.style.display = 'flex';
+    listenToCloudData();
 }
 
-// Update Dashboard
-function updateDashboard() {
-    const totalProd = products.length;
-    const totalValue = products.reduce((acc, p) => acc + (p.price * p.qty), 0);
-    const lowStock = products.filter(p => p.qty < 5).length;
-
-    if (document.getElementById('dash-total-products')) document.getElementById('dash-total-products').innerText = totalProd;
-    if (document.getElementById('dash-total-value')) document.getElementById('dash-total-value').innerText = totalValue.toFixed(2) + ' DH';
-    if (document.getElementById('dash-low-stock')) document.getElementById('dash-low-stock').innerText = lowStock;
-}
-
-// Add / Edit Product
-document.getElementById('product-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const id = document.getElementById('prod-id').value;
-    const ref = document.getElementById('prod-ref').value;
-    const name = document.getElementById('prod-name').value;
-    const price = parseFloat(document.getElementById('prod-price').value);
-    const qty = parseInt(document.getElementById('prod-qty').value);
-
-    const productData = { ref, name, price, qty };
-
-    if (id) {
-        DB_REF.child('products').child(id).update(productData);
-    } else {
-        DB_REF.child('products').push(productData);
-    }
-
-    const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
-    modal.hide();
-    document.getElementById('product-form').reset();
-    document.getElementById('prod-id').value = '';
-});
-
-window.editProduct = function(id) {
-    const p = products.find(prod => prod.id === id);
-    if (!p) return;
-    document.getElementById('prod-id').value = p.id;
-    document.getElementById('prod-ref').value = p.ref;
-    document.getElementById('prod-name').value = p.name;
-    document.getElementById('prod-price').value = p.price;
-    document.getElementById('prod-qty').value = p.qty;
-
-    const modal = new bootstrap.Modal(document.getElementById('productModal'));
-    modal.show();
-};
-
-window.deleteProduct = function(id) {
-    if (confirm('Voulez-vous vraiment supprimer ce produit ?')) {
-        DB_REF.child('products').child(id).remove();
-    }
-};
-
-// Movements
-function populateMovementDropdown() {
-    const select = document.getElementById('mov-product-id');
-    if (!select) return;
-    select.innerHTML = '<option value="">Choisir un produit...</option>';
-    products.forEach(p => {
-        select.innerHTML += `<option value="${p.id}">${p.name} (Stock: ${p.qty})</option>`;
-    });
-}
-
-document.getElementById('movement-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const id = document.getElementById('mov-product-id').value;
-    const type = document.getElementById('mov-type').value;
-    const qty = parseInt(document.getElementById('mov-qty').value);
-
-    const product = products.find(p => p.id === id);
-    if (!product) return;
-
-    let newQty = type === 'IN' ? product.qty + qty : product.qty - qty;
-    if (newQty < 0) {
-        alert('Stock insuffisant !');
-        return;
-    }
-
-    DB_REF.child('products').child(id).update({ qty: newQty });
-    document.getElementById('movement-form').reset();
-    alert('Mouvement effectué avec succès !');
-});
-
-// Settings Update
-document.getElementById('settings-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const newUser = document.getElementById('set-username').value;
-    const newPass = document.getElementById('set-password').value;
-
-    const newAuth = { user: newUser, pass: newPass };
-    DB_REF.child('auth').set(newAuth);
-    alert('Paramètres mis à jour ! Veuillez vous reconnecter.');
+function logout() {
+    sessionStorage.removeItem('isLoggedIn');
     location.reload();
+}
+
+// Global Variables
+let products = [];
+let history = [];
+
+const productForm = document.getElementById('add-product-form');
+const movementForm = document.getElementById('movement-form');
+const productsList = document.getElementById('products-list');
+const historyList = document.getElementById('history-list');
+const selectProduct = document.getElementById('select-product');
+
+// 3. Sync avec le Cloud en temps réel
+function listenToCloudData() {
+    db.ref('stock_data').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            products = data.products || [];
+            history = data.history || [];
+        } else {
+            products = [];
+            history = [];
+        }
+        updateUI();
+    });
+}
+
+function saveToCloud() {
+    db.ref('stock_data').set({
+        products: products,
+        history: history
+    });
+}
+
+function updateUI() {
+    renderProducts();
+    renderHistory();
+    updateDashboard();
+    updateSelect();
+}
+
+function renderProducts() {
+    productsList.innerHTML = '';
+    const searchValue = document.getElementById('search-input') ? document.getElementById('search-input').value.toLowerCase() : '';
+    const filterStatus = document.getElementById('filter-status') ? document.getElementById('filter-status').value : 'ALL';
+
+    const filteredProducts = products.filter((p) => {
+        const matchesSearch = p.name.toLowerCase().includes(searchValue) || p.location.toLowerCase().includes(searchValue) || p.category.toLowerCase().includes(searchValue);
+        let statusType = 'OK';
+        if (p.qty <= 0) statusType = 'EPUISER';
+        else if (p.qty <= p.seuil) statusType = 'FAIBLE';
+        return matchesSearch && (filterStatus === 'ALL' || filterStatus === statusType);
+    });
+
+    filteredProducts.forEach((p) => {
+        const originalIndex = products.indexOf(p);
+        let statusBadge = '✅ OK';
+        let statusStyle = 'color:green; font-weight:bold;';
+        
+        if (p.qty <= 0) {
+            statusBadge = '❌ Épuisé';
+            statusStyle = 'color:red; font-weight:bold;';
+        } else if (p.qty <= p.seuil) {
+            statusBadge = '⚠️ Stock Faible';
+            statusStyle = 'color:orange; font-weight:bold;';
+        }
+
+        productsList.innerHTML += `
+            <tr>
+                <td><strong>${p.name}</strong></td>
+                <td>${p.category}</td>
+                <td>${p.qty} ${p.unit}</td>
+                <td>${p.seuil} ${p.unit}</td>
+                <td>${p.location}</td>
+                <td><span style="${statusStyle}">${statusBadge}</span></td>
+                <td>
+                    <button class="btn-delete-item" onclick="deleteSingleProduct(${originalIndex})">🗑️ Supprimer</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+productForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    products.push({
+        name: document.getElementById('p-name').value,
+        category: document.getElementById('p-cat').value,
+        qty: parseInt(document.getElementById('p-qty').value),
+        seuil: parseInt(document.getElementById('p-seuil').value),
+        unit: document.getElementById('p-unit').value,
+        location: document.getElementById('p-loc').value
+    });
+    saveToCloud();
+    productForm.reset();
 });
 
-// Export Excel & PDF
-document.getElementById('export-excel')?.addEventListener('click', () => {
-    const ws = XLSX.utils.json_to_sheet(products);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Produits");
-    XLSX.writeFile(wb, "Stock_Smart_Stock.xlsx");
+function deleteSingleProduct(index) {
+    if (confirm(`Voulez-vous supprimer "${products[index].name}" ?`)) {
+        products.splice(index, 1);
+        saveToCloud();
+    }
+}
+
+function clearAllData() {
+    if (confirm("⚠️ ATTENTION : Voulez-vous vraiment effacer TOUT le stock et l'historique ?")) {
+        products = [];
+        history = [];
+        saveToCloud();
+    }
+}
+
+movementForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const pIndex = selectProduct.value;
+    const type = document.getElementById('movement-type').value;
+    const qty = parseInt(document.getElementById('mov-qty').value);
+    const target = document.getElementById('mov-target').value;
+
+    if (pIndex === "") return;
+    if (type === 'Sortie' && products[pIndex].qty < qty) return alert("⚠️ Stock insuffisant !");
+
+    if (type === 'Entrée') products[pIndex].qty += qty;
+    else products[pIndex].qty -= qty;
+
+    history.push({
+        date: new Date().toLocaleString('fr-FR'),
+        productName: products[pIndex].name,
+        type: type, qty: qty, target: target
+    });
+
+    saveToCloud();
+    movementForm.reset();
 });
 
-document.getElementById('export-pdf')?.addEventListener('click', () => {
+function renderHistory() {
+    historyList.innerHTML = '';
+    history.slice().reverse().forEach(h => {
+        const typeColor = h.type === 'Entrée' ? 'color:green;' : 'color:red;';
+        historyList.innerHTML += `
+            <tr>
+                <td>${h.date}</td>
+                <td><strong>${h.productName}</strong></td>
+                <td style="${typeColor} font-weight:bold;">${h.type}</td>
+                <td>${h.qty}</td>
+                <td>${h.target}</td>
+            </tr>
+        `;
+    });
+}
+
+function updateSelect() {
+    selectProduct.innerHTML = '<option value="">-- Choisir le matériel --</option>';
+    products.forEach((p, index) => {
+        selectProduct.innerHTML += `<option value="${index}">${p.name} (Stock: ${p.qty})</option>`;
+    });
+}
+
+function updateDashboard() {
+    document.getElementById('total-produits').innerText = products.length;
+    document.getElementById('stock-faible').innerText = products.filter(p => p.qty > 0 && p.qty <= p.seuil).length;
+    document.getElementById('stock-epuise').innerText = products.filter(p => p.qty <= 0).length;
+}
+
+function importFromExcel(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+        let count = 0;
+        jsonData.forEach(row => {
+            const name = row['Nom'] || row['Nom du Produit'] || row['name'];
+            if (name) {
+                products.push({
+                    name: String(name),
+                    category: String(row['Catégorie'] || row['category'] || 'Général'),
+                    qty: parseInt(row['Quantité'] || row['qty'] || 0),
+                    seuil: parseInt(row['Seuil Min'] || row['seuil'] || 5),
+                    unit: String(row['Unité'] || row['unit'] || 'unité'),
+                    location: String(row['Emplacement'] || row['location'] || 'Magasin')
+                });
+                count++;
+            }
+        });
+
+        saveToCloud();
+        alert(`✅ Succès : ${count} produits importés depuis Excel !`);
+        e.target.value = '';
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function exportToExcel() {
+    if (products.length === 0) return alert("Le stock est vide !");
+    const dataToExport = products.map(p => ({
+        "Nom": p.name, "Catégorie": p.category, "Quantité": p.qty, "Unité": p.unit,
+        "Seuil Min": p.seuil, "Emplacement": p.location,
+        "Statut": p.qty <= 0 ? "Épuisé" : (p.qty <= p.seuil ? "Stock Faible" : "OK")
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Stock Actuel");
+    XLSX.writeFile(workbook, `Rapport_Stock_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+function exportToPDF() {
+    if (products.length === 0) return alert("Le stock est vide !");
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    doc.text("Rapport du Stock - Smart Stock", 14, 15);
-    
-    const tableColumn = ["Référence", "Nom", "Prix (DH)", "Quantité"];
-    const tableRows = products.map(p => [p.ref, p.name, p.price, p.qty]);
+    doc.setFontSize(18);
+    doc.text("Rapport du Stock - Smart Stock Manager", 14, 22);
+    doc.setFontSize(11);
+    doc.text(`Généré le: ${new Date().toLocaleString('fr-FR')}`, 14, 30);
 
-    doc.autoTable({ head: [tableColumn], body: tableRows, startY: 20 });
-    doc.save("Stock_Smart_Stock.pdf");
-});
+    const tableRows = products.map(p => [
+        p.name, p.category, `${p.qty} ${p.unit}`, `${p.seuil} ${p.unit}`, p.location,
+        p.qty <= 0 ? "Épuisé" : (p.qty <= p.seuil ? "Faible" : "OK")
+    ]);
+
+    doc.autoTable({
+        head: [['Nom', 'Catégorie', 'Quantité', 'Seuil Min', 'Emplacement', 'Statut']],
+        body: tableRows, startY: 36, theme: 'striped', headStyles: { fillColor: [14, 165, 233] }
+    });
+    doc.save(`Rapport_Stock_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
