@@ -1,313 +1,215 @@
 // Firebase Configuration
 const firebaseConfig = {
-    databaseURL: "https://smart-stock-default-rtdb.europe-west1.firebasedatabase.app"
+    databaseURL: "https://smart-stock-1c2a9-default-rtdb.firebaseio.com"
 };
+
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const DB_REF = db.ref('stock_data');
 
 // Global State
 let products = [];
-let history = [];
 let authData = { user: "admin", pass: "123456" };
 
-// Elements
+// DOM Elements
 const loginForm = document.getElementById('login-form');
 const loginContainer = document.getElementById('login-container');
 const appContainer = document.getElementById('app-container');
 const loginError = document.getElementById('login-error');
-const productForm = document.getElementById('add-product-form');
-const movementForm = document.getElementById('movement-form');
-const settingsForm = document.getElementById('settings-form');
-const productsList = document.getElementById('products-list');
-const historyList = document.getElementById('history-list');
-const selectProduct = document.getElementById('select-product');
+const logoutBtn = document.getElementById('logout-btn');
 
-// Init Session & Cloud Sync
-window.addEventListener('DOMContentLoaded', () => {
-    listenToCloudData();
-    if (sessionStorage.getItem('isLoggedIn') === 'true') {
-        showApp();
+// Load Auth Data & Products from Firebase
+DB_REF.child('auth').on('value', (snapshot) => {
+    if (snapshot.exists()) {
+        authData = snapshot.val();
+    } else {
+        DB_REF.child('auth').set(authData);
     }
 });
 
-// Realtime Database Sync
-function listenToCloudData() {
-    db.ref('smart_stock_app').on('value', (snapshot) => {
+DB_REF.child('products').on('value', (snapshot) => {
+    products = [];
+    if (snapshot.exists()) {
         const data = snapshot.val();
-        if (data) {
-            products = data.products || [];
-            history = data.history || [];
-            if (data.auth) authData = data.auth;
+        for (let key in data) {
+            products.push({ id: key, ...data[key] });
         }
-        updateUI();
-    });
-}
+    }
+    renderProducts();
+    updateDashboard();
+    populateMovementDropdown();
+});
 
-function saveToCloud() {
-    db.ref('smart_stock_app').set({
-        products: products,
-        history: history,
-        auth: authData
-    });
-}
-
-// Authentication
+// Login Process
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const userInput = document.getElementById('username').value;
-    const passInput = document.getElementById('password').value;
+    const u = document.getElementById('username').value;
+    const p = document.getElementById('password').value;
 
-    if (userInput === authData.user && passInput === authData.pass) {
-        sessionStorage.setItem('isLoggedIn', 'true');
-        showApp();
+    if (u === authData.user && p === authData.pass) {
+        loginContainer.classList.add('d-none');
+        appContainer.classList.remove('d-none');
     } else {
-        loginError.innerText = "Nom d'utilisateur ou mot de passe incorrect !";
+        loginError.classList.remove('d-none');
     }
 });
 
-function showApp() {
-    loginContainer.style.display = 'none';
-    appContainer.style.display = 'flex';
-    updateUI();
-}
+// Logout
+logoutBtn.addEventListener('click', () => {
+    appContainer.classList.add('d-none');
+    loginContainer.classList.remove('d-none');
+    document.getElementById('username').value = '';
+    document.getElementById('password').value = '';
+});
 
-function logout() {
-    sessionStorage.removeItem('isLoggedIn');
-    location.reload();
-}
-
-// Tab Switching System
-function switchTab(tabId) {
-    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-    document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
-
-    document.getElementById(`tab-${tabId}`).classList.add('active');
-    
-    const activeLink = document.querySelector(`.nav-link[href="#${tabId}"]`);
-    if(activeLink) activeLink.classList.add('active');
-
-    const titles = {
-        'dashboard': 'Tableau de Bord',
-        'produits': 'Gestion des Produits',
-        'mouvements': 'Entrées & Sorties',
-        'historique': 'Historique des Mouvements',
-        'settings': 'Paramètres du Système'
-    };
-    document.getElementById('page-title').innerText = titles[tabId];
-}
-
-// UI Rendering
-function updateUI() {
-    renderProducts();
-    renderHistory();
-    updateDashboard();
-    updateSelect();
-}
-
-function renderProducts() {
-    productsList.innerHTML = '';
-    const searchValue = document.getElementById('search-input') ? document.getElementById('search-input').value.toLowerCase() : '';
-    const filterStatus = document.getElementById('filter-status') ? document.getElementById('filter-status').value : 'ALL';
-
-    const filteredProducts = products.filter((p) => {
-        const matchesSearch = p.name.toLowerCase().includes(searchValue) || p.location.toLowerCase().includes(searchValue) || p.category.toLowerCase().includes(searchValue);
-        let statusType = 'OK';
-        if (p.qty <= 0) statusType = 'EPUISER';
-        else if (p.qty <= p.seuil) statusType = 'FAIBLE';
-        return matchesSearch && (filterStatus === 'ALL' || filterStatus === statusType);
-    });
-
-    filteredProducts.forEach((p) => {
-        const originalIndex = products.indexOf(p);
-        let badgeHtml = '<span class="badge badge-success"><i class="fa-solid fa-check"></i> En Stock</span>';
+// Navigation
+document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
+        document.querySelectorAll('.content-section').forEach(s => s.classList.add('d-none'));
         
-        if (p.qty <= 0) {
-            badgeHtml = '<span class="badge badge-danger"><i class="fa-solid fa-xmark"></i> Épuisé</span>';
-        } else if (p.qty <= p.seuil) {
-            badgeHtml = '<span class="badge badge-warning"><i class="fa-solid fa-triangle-exclamation"></i> Faible</span>';
-        }
+        link.classList.add('active');
+        const targetSection = link.getAttribute('data-section');
+        document.getElementById(`sec-${targetSection}`).classList.remove('d-none');
+    });
+});
 
-        productsList.innerHTML += `
-            <tr>
-                <td><strong>${p.name}</strong></td>
-                <td>${p.category}</td>
-                <td><strong>${p.qty}</strong> ${p.unit}</td>
-                <td>${p.seuil} ${p.unit}</td>
-                <td>${p.location}</td>
-                <td>${badgeHtml}</td>
-                <td>
-                    <button class="btn-delete-item" onclick="deleteSingleProduct(${originalIndex})">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
-                </td>
-            </tr>
+// Render Products Table
+function renderProducts() {
+    const tbody = document.getElementById('products-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    products.forEach(p => {
+        const tr = document.createElement('tr');
+        const isLow = p.qty < 5;
+        tr.innerHTML = `
+            <td><strong>${p.ref}</strong></td>
+            <td>${p.name}</td>
+            <td>${parseFloat(p.price).toFixed(2)} DH</td>
+            <td><span class="badge ${isLow ? 'bg-danger' : 'bg-primary'}">${p.qty}</span></td>
+            <td><span class="badge ${isLow ? 'bg-warning text-dark' : 'bg-success'}">${isLow ? 'Alerte Stock' : 'Disponible'}</span></td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="editProduct('${p.id}')"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteProduct('${p.id}')"><i class="fa-solid fa-trash"></i></button>
+            </td>
         `;
+        tbody.appendChild(tr);
     });
 }
 
-function renderHistory() {
-    historyList.innerHTML = '';
-    history.slice().reverse().forEach(h => {
-        const isEntry = h.type === 'Entrée';
-        const badgeClass = isEntry ? 'badge-success' : 'badge-danger';
-        const icon = isEntry ? 'fa-arrow-down-long' : 'fa-arrow-up-long';
-
-        historyList.innerHTML += `
-            <tr>
-                <td>${h.date}</td>
-                <td><strong>${h.productName}</strong></td>
-                <td><span class="badge ${badgeClass}"><i class="fa-solid ${icon}"></i> ${h.type}</span></td>
-                <td><strong>${h.qty}</strong></td>
-                <td>${h.target}</td>
-            </tr>
-        `;
-    });
-}
-
-function updateSelect() {
-    selectProduct.innerHTML = '<option value="">-- Choisir le matériel --</option>';
-    products.forEach((p, index) => {
-        selectProduct.innerHTML += `<option value="${index}">${p.name} (Stock: ${p.qty})</option>`;
-    });
-}
-
+// Update Dashboard
 function updateDashboard() {
-    document.getElementById('total-produits').innerText = products.length;
-    document.getElementById('stock-faible').innerText = products.filter(p => p.qty > 0 && p.qty <= p.seuil).length;
-    document.getElementById('stock-epuise').innerText = products.filter(p => p.qty <= 0).length;
+    const totalProd = products.length;
+    const totalValue = products.reduce((acc, p) => acc + (p.price * p.qty), 0);
+    const lowStock = products.filter(p => p.qty < 5).length;
+
+    if (document.getElementById('dash-total-products')) document.getElementById('dash-total-products').innerText = totalProd;
+    if (document.getElementById('dash-total-value')) document.getElementById('dash-total-value').innerText = totalValue.toFixed(2) + ' DH';
+    if (document.getElementById('dash-low-stock')) document.getElementById('dash-low-stock').innerText = lowStock;
 }
 
-// Handlers & Forms
-productForm.addEventListener('submit', (e) => {
+// Add / Edit Product
+document.getElementById('product-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    products.push({
-        name: document.getElementById('p-name').value,
-        category: document.getElementById('p-cat').value,
-        qty: parseInt(document.getElementById('p-qty').value),
-        seuil: parseInt(document.getElementById('p-seuil').value),
-        unit: document.getElementById('p-unit').value,
-        location: document.getElementById('p-loc').value
-    });
-    saveToCloud();
-    productForm.reset();
-    switchTab('dashboard');
+    const id = document.getElementById('prod-id').value;
+    const ref = document.getElementById('prod-ref').value;
+    const name = document.getElementById('prod-name').value;
+    const price = parseFloat(document.getElementById('prod-price').value);
+    const qty = parseInt(document.getElementById('prod-qty').value);
+
+    const productData = { ref, name, price, qty };
+
+    if (id) {
+        DB_REF.child('products').child(id).update(productData);
+    } else {
+        DB_REF.child('products').push(productData);
+    }
+
+    const modal = bootstrap.Modal.getInstance(document.getElementById('productModal'));
+    modal.hide();
+    document.getElementById('product-form').reset();
+    document.getElementById('prod-id').value = '';
 });
 
-movementForm.addEventListener('submit', (e) => {
+window.editProduct = function(id) {
+    const p = products.find(prod => prod.id === id);
+    if (!p) return;
+    document.getElementById('prod-id').value = p.id;
+    document.getElementById('prod-ref').value = p.ref;
+    document.getElementById('prod-name').value = p.name;
+    document.getElementById('prod-price').value = p.price;
+    document.getElementById('prod-qty').value = p.qty;
+
+    const modal = new bootstrap.Modal(document.getElementById('productModal'));
+    modal.show();
+};
+
+window.deleteProduct = function(id) {
+    if (confirm('Voulez-vous vraiment supprimer ce produit ?')) {
+        DB_REF.child('products').child(id).remove();
+    }
+};
+
+// Movements
+function populateMovementDropdown() {
+    const select = document.getElementById('mov-product-id');
+    if (!select) return;
+    select.innerHTML = '<option value="">Choisir un produit...</option>';
+    products.forEach(p => {
+        select.innerHTML += `<option value="${p.id}">${p.name} (Stock: ${p.qty})</option>`;
+    });
+}
+
+document.getElementById('movement-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    const pIndex = selectProduct.value;
-    const type = document.getElementById('movement-type').value;
+    const id = document.getElementById('mov-product-id').value;
+    const type = document.getElementById('mov-type').value;
     const qty = parseInt(document.getElementById('mov-qty').value);
-    const target = document.getElementById('mov-target').value;
 
-    if (pIndex === "") return;
-    if (type === 'Sortie' && products[pIndex].qty < qty) return alert("Stock insuffisant !");
+    const product = products.find(p => p.id === id);
+    if (!product) return;
 
-    if (type === 'Entrée') products[pIndex].qty += qty;
-    else products[pIndex].qty -= qty;
+    let newQty = type === 'IN' ? product.qty + qty : product.qty - qty;
+    if (newQty < 0) {
+        alert('Stock insuffisant !');
+        return;
+    }
 
-    history.push({
-        date: new Date().toLocaleString('fr-FR'),
-        productName: products[pIndex].name,
-        type: type, qty: qty, target: target
-    });
-
-    saveToCloud();
-    movementForm.reset();
-    switchTab('dashboard');
+    DB_REF.child('products').child(id).update({ qty: newQty });
+    document.getElementById('movement-form').reset();
+    alert('Mouvement effectué avec succès !');
 });
 
-// Update Account Settings
-settingsForm.addEventListener('submit', (e) => {
+// Settings Update
+document.getElementById('settings-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    authData.user = document.getElementById('new-username').value;
-    authData.pass = document.getElementById('new-password').value;
-    
-    saveToCloud();
-    document.getElementById('settings-msg').innerText = "Les identifiants ont été mis à jour avec succès !";
-    setTimeout(() => { document.getElementById('settings-msg').innerText = ""; }, 4000);
+    const newUser = document.getElementById('set-username').value;
+    const newPass = document.getElementById('set-password').value;
+
+    const newAuth = { user: newUser, pass: newPass };
+    DB_REF.child('auth').set(newAuth);
+    alert('Paramètres mis à jour ! Veuillez vous reconnecter.');
+    location.reload();
 });
 
-function deleteSingleProduct(index) {
-    if (confirm(`Voulez-vous supprimer "${products[index].name}" ?`)) {
-        products.splice(index, 1);
-        saveToCloud();
-    }
-}
+// Export Excel & PDF
+document.getElementById('export-excel')?.addEventListener('click', () => {
+    const ws = XLSX.utils.json_to_sheet(products);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Produits");
+    XLSX.writeFile(wb, "Stock_Smart_Stock.xlsx");
+});
 
-function clearAllData() {
-    if (confirm("ATTENTION : Voulez-vous vraiment effacer TOUT le stock et l'historique ?")) {
-        products = [];
-        history = [];
-        saveToCloud();
-    }
-}
-
-// Export / Import
-function importFromExcel(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function(event) {
-        const data = new Uint8Array(event.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-
-        let count = 0;
-        jsonData.forEach(row => {
-            const name = row['Nom'] || row['Nom du Produit'] || row['name'];
-            if (name) {
-                products.push({
-                    name: String(name),
-                    category: String(row['Catégorie'] || row['category'] || 'Général'),
-                    qty: parseInt(row['Quantité'] || row['qty'] || 0),
-                    seuil: parseInt(row['Seuil Min'] || row['seuil'] || 5),
-                    unit: String(row['Unité'] || row['unit'] || 'unité'),
-                    location: String(row['Emplacement'] || row['location'] || 'Magasin')
-                });
-                count++;
-            }
-        });
-
-        saveToCloud();
-        alert(`${count} produits importés avec succès !`);
-        e.target.value = '';
-    };
-    reader.readAsArrayBuffer(file);
-}
-
-function exportToExcel() {
-    if (products.length === 0) return alert("Le stock est vide !");
-    const dataToExport = products.map(p => ({
-        "Nom": p.name, "Catégorie": p.category, "Quantité": p.qty, "Unité": p.unit,
-        "Seuil Min": p.seuil, "Emplacement": p.location,
-        "Statut": p.qty <= 0 ? "Épuisé" : (p.qty <= p.seuil ? "Stock Faible" : "OK")
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Stock Actuel");
-    XLSX.writeFile(workbook, `Stock_${new Date().toISOString().slice(0, 10)}.xlsx`);
-}
-
-function exportToPDF() {
-    if (products.length === 0) return alert("Le stock est vide !");
+document.getElementById('export-pdf')?.addEventListener('click', () => {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.text("Rapport du Stock - Smart Stock Manager", 14, 22);
-    doc.setFontSize(11);
-    doc.text(`Généré le: ${new Date().toLocaleString('fr-FR')}`, 14, 30);
+    doc.text("Rapport du Stock - Smart Stock", 14, 15);
+    
+    const tableColumn = ["Référence", "Nom", "Prix (DH)", "Quantité"];
+    const tableRows = products.map(p => [p.ref, p.name, p.price, p.qty]);
 
-    const tableRows = products.map(p => [
-        p.name, p.category, `${p.qty} ${p.unit}`, `${p.seuil} ${p.unit}`, p.location,
-        p.qty <= 0 ? "Épuisé" : (p.qty <= p.seuil ? "Faible" : "OK")
-    ]);
-
-    doc.autoTable({
-        head: [['Nom', 'Catégorie', 'Quantité', 'Seuil Min', 'Emplacement', 'Statut']],
-        body: tableRows, startY: 36, theme: 'striped', headStyles: { fillColor: [2, 132, 199] }
-    });
-    doc.save(`Stock_${new Date().toISOString().slice(0, 10)}.pdf`);
-}
+    doc.autoTable({ head: [tableColumn], body: tableRows, startY: 20 });
+    doc.save("Stock_Smart_Stock.pdf");
+});
