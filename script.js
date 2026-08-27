@@ -1,31 +1,63 @@
-// 1. Firebase Configuration (Realtime Database Online)
+// Firebase Configuration
 const firebaseConfig = {
-    databaseURL: "https://smart-stock-1c2a9-default-rtdb.firebaseio.com"
+    databaseURL: "https://smart-stock-default-rtdb.europe-west1.firebasedatabase.app"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// 2. Auth Configuration
-const AUTH_USER = "admin";
-const AUTH_PASS = "123456";
+// Global State
+let products = [];
+let history = [];
+let authData = { user: "admin", pass: "123456" };
 
+// Elements
 const loginForm = document.getElementById('login-form');
 const loginContainer = document.getElementById('login-container');
 const appContainer = document.getElementById('app-container');
 const loginError = document.getElementById('login-error');
+const productForm = document.getElementById('add-product-form');
+const movementForm = document.getElementById('movement-form');
+const settingsForm = document.getElementById('settings-form');
+const productsList = document.getElementById('products-list');
+const historyList = document.getElementById('history-list');
+const selectProduct = document.getElementById('select-product');
 
+// Init Session & Cloud Sync
 window.addEventListener('DOMContentLoaded', () => {
+    listenToCloudData();
     if (sessionStorage.getItem('isLoggedIn') === 'true') {
         showApp();
     }
 });
 
+// Realtime Database Sync
+function listenToCloudData() {
+    db.ref('smart_stock_app').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            products = data.products || [];
+            history = data.history || [];
+            if (data.auth) authData = data.auth;
+        }
+        updateUI();
+    });
+}
+
+function saveToCloud() {
+    db.ref('smart_stock_app').set({
+        products: products,
+        history: history,
+        auth: authData
+    });
+}
+
+// Authentication
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const userInput = document.getElementById('username').value;
     const passInput = document.getElementById('password').value;
 
-    if (userInput === AUTH_USER && passInput === AUTH_PASS) {
+    if (userInput === authData.user && passInput === authData.pass) {
         sessionStorage.setItem('isLoggedIn', 'true');
         showApp();
     } else {
@@ -36,7 +68,7 @@ loginForm.addEventListener('submit', (e) => {
 function showApp() {
     loginContainer.style.display = 'none';
     appContainer.style.display = 'flex';
-    listenToCloudData();
+    updateUI();
 }
 
 function logout() {
@@ -44,38 +76,27 @@ function logout() {
     location.reload();
 }
 
-// Global Variables
-let products = [];
-let history = [];
+// Tab Switching System
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
 
-const productForm = document.getElementById('add-product-form');
-const movementForm = document.getElementById('movement-form');
-const productsList = document.getElementById('products-list');
-const historyList = document.getElementById('history-list');
-const selectProduct = document.getElementById('select-product');
+    document.getElementById(`tab-${tabId}`).classList.add('active');
+    
+    const activeLink = document.querySelector(`.nav-link[href="#${tabId}"]`);
+    if(activeLink) activeLink.classList.add('active');
 
-// 3. Sync avec le Cloud en temps réel
-function listenToCloudData() {
-    db.ref('stock_data').on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-            products = data.products || [];
-            history = data.history || [];
-        } else {
-            products = [];
-            history = [];
-        }
-        updateUI();
-    });
+    const titles = {
+        'dashboard': 'Tableau de Bord',
+        'produits': 'Gestion des Produits',
+        'mouvements': 'Entrées & Sorties',
+        'historique': 'Historique des Mouvements',
+        'settings': 'Paramètres du Système'
+    };
+    document.getElementById('page-title').innerText = titles[tabId];
 }
 
-function saveToCloud() {
-    db.ref('stock_data').set({
-        products: products,
-        history: history
-    });
-}
-
+// UI Rendering
 function updateUI() {
     renderProducts();
     renderHistory();
@@ -98,95 +119,45 @@ function renderProducts() {
 
     filteredProducts.forEach((p) => {
         const originalIndex = products.indexOf(p);
-        let statusBadge = '✅ OK';
-        let statusStyle = 'color:green; font-weight:bold;';
+        let badgeHtml = '<span class="badge badge-success"><i class="fa-solid fa-check"></i> En Stock</span>';
         
         if (p.qty <= 0) {
-            statusBadge = '❌ Épuisé';
-            statusStyle = 'color:red; font-weight:bold;';
+            badgeHtml = '<span class="badge badge-danger"><i class="fa-solid fa-xmark"></i> Épuisé</span>';
         } else if (p.qty <= p.seuil) {
-            statusBadge = '⚠️ Stock Faible';
-            statusStyle = 'color:orange; font-weight:bold;';
+            badgeHtml = '<span class="badge badge-warning"><i class="fa-solid fa-triangle-exclamation"></i> Faible</span>';
         }
 
         productsList.innerHTML += `
             <tr>
                 <td><strong>${p.name}</strong></td>
                 <td>${p.category}</td>
-                <td>${p.qty} ${p.unit}</td>
+                <td><strong>${p.qty}</strong> ${p.unit}</td>
                 <td>${p.seuil} ${p.unit}</td>
                 <td>${p.location}</td>
-                <td><span style="${statusStyle}">${statusBadge}</span></td>
+                <td>${badgeHtml}</td>
                 <td>
-                    <button class="btn-delete-item" onclick="deleteSingleProduct(${originalIndex})">🗑️ Supprimer</button>
+                    <button class="btn-delete-item" onclick="deleteSingleProduct(${originalIndex})">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
                 </td>
             </tr>
         `;
     });
 }
 
-productForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    products.push({
-        name: document.getElementById('p-name').value,
-        category: document.getElementById('p-cat').value,
-        qty: parseInt(document.getElementById('p-qty').value),
-        seuil: parseInt(document.getElementById('p-seuil').value),
-        unit: document.getElementById('p-unit').value,
-        location: document.getElementById('p-loc').value
-    });
-    saveToCloud();
-    productForm.reset();
-});
-
-function deleteSingleProduct(index) {
-    if (confirm(`Voulez-vous supprimer "${products[index].name}" ?`)) {
-        products.splice(index, 1);
-        saveToCloud();
-    }
-}
-
-function clearAllData() {
-    if (confirm("⚠️ ATTENTION : Voulez-vous vraiment effacer TOUT le stock et l'historique ?")) {
-        products = [];
-        history = [];
-        saveToCloud();
-    }
-}
-
-movementForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const pIndex = selectProduct.value;
-    const type = document.getElementById('movement-type').value;
-    const qty = parseInt(document.getElementById('mov-qty').value);
-    const target = document.getElementById('mov-target').value;
-
-    if (pIndex === "") return;
-    if (type === 'Sortie' && products[pIndex].qty < qty) return alert("⚠️ Stock insuffisant !");
-
-    if (type === 'Entrée') products[pIndex].qty += qty;
-    else products[pIndex].qty -= qty;
-
-    history.push({
-        date: new Date().toLocaleString('fr-FR'),
-        productName: products[pIndex].name,
-        type: type, qty: qty, target: target
-    });
-
-    saveToCloud();
-    movementForm.reset();
-});
-
 function renderHistory() {
     historyList.innerHTML = '';
     history.slice().reverse().forEach(h => {
-        const typeColor = h.type === 'Entrée' ? 'color:green;' : 'color:red;';
+        const isEntry = h.type === 'Entrée';
+        const badgeClass = isEntry ? 'badge-success' : 'badge-danger';
+        const icon = isEntry ? 'fa-arrow-down-long' : 'fa-arrow-up-long';
+
         historyList.innerHTML += `
             <tr>
                 <td>${h.date}</td>
                 <td><strong>${h.productName}</strong></td>
-                <td style="${typeColor} font-weight:bold;">${h.type}</td>
-                <td>${h.qty}</td>
+                <td><span class="badge ${badgeClass}"><i class="fa-solid ${icon}"></i> ${h.type}</span></td>
+                <td><strong>${h.qty}</strong></td>
                 <td>${h.target}</td>
             </tr>
         `;
@@ -206,6 +177,73 @@ function updateDashboard() {
     document.getElementById('stock-epuise').innerText = products.filter(p => p.qty <= 0).length;
 }
 
+// Handlers & Forms
+productForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    products.push({
+        name: document.getElementById('p-name').value,
+        category: document.getElementById('p-cat').value,
+        qty: parseInt(document.getElementById('p-qty').value),
+        seuil: parseInt(document.getElementById('p-seuil').value),
+        unit: document.getElementById('p-unit').value,
+        location: document.getElementById('p-loc').value
+    });
+    saveToCloud();
+    productForm.reset();
+    switchTab('dashboard');
+});
+
+movementForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const pIndex = selectProduct.value;
+    const type = document.getElementById('movement-type').value;
+    const qty = parseInt(document.getElementById('mov-qty').value);
+    const target = document.getElementById('mov-target').value;
+
+    if (pIndex === "") return;
+    if (type === 'Sortie' && products[pIndex].qty < qty) return alert("Stock insuffisant !");
+
+    if (type === 'Entrée') products[pIndex].qty += qty;
+    else products[pIndex].qty -= qty;
+
+    history.push({
+        date: new Date().toLocaleString('fr-FR'),
+        productName: products[pIndex].name,
+        type: type, qty: qty, target: target
+    });
+
+    saveToCloud();
+    movementForm.reset();
+    switchTab('dashboard');
+});
+
+// Update Account Settings
+settingsForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    authData.user = document.getElementById('new-username').value;
+    authData.pass = document.getElementById('new-password').value;
+    
+    saveToCloud();
+    document.getElementById('settings-msg').innerText = "Les identifiants ont été mis à jour avec succès !";
+    setTimeout(() => { document.getElementById('settings-msg').innerText = ""; }, 4000);
+});
+
+function deleteSingleProduct(index) {
+    if (confirm(`Voulez-vous supprimer "${products[index].name}" ?`)) {
+        products.splice(index, 1);
+        saveToCloud();
+    }
+}
+
+function clearAllData() {
+    if (confirm("ATTENTION : Voulez-vous vraiment effacer TOUT le stock et l'historique ?")) {
+        products = [];
+        history = [];
+        saveToCloud();
+    }
+}
+
+// Export / Import
 function importFromExcel(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -234,7 +272,7 @@ function importFromExcel(e) {
         });
 
         saveToCloud();
-        alert(`✅ Succès : ${count} produits importés depuis Excel !`);
+        alert(`${count} produits importés avec succès !`);
         e.target.value = '';
     };
     reader.readAsArrayBuffer(file);
@@ -250,7 +288,7 @@ function exportToExcel() {
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Stock Actuel");
-    XLSX.writeFile(workbook, `Rapport_Stock_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(workbook, `Stock_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 function exportToPDF() {
@@ -269,7 +307,7 @@ function exportToPDF() {
 
     doc.autoTable({
         head: [['Nom', 'Catégorie', 'Quantité', 'Seuil Min', 'Emplacement', 'Statut']],
-        body: tableRows, startY: 36, theme: 'striped', headStyles: { fillColor: [14, 165, 233] }
+        body: tableRows, startY: 36, theme: 'striped', headStyles: { fillColor: [2, 132, 199] }
     });
-    doc.save(`Rapport_Stock_${new Date().toISOString().slice(0, 10)}.pdf`);
+    doc.save(`Stock_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
