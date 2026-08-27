@@ -2,7 +2,6 @@
 const firebaseConfig = {
     databaseURL: "https://smart-stock-3a643-default-rtdb.firebaseio.com"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const DB_REF = db.ref('stock_data');
