@@ -3,47 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Stock - Gestion de Stock</title>
+    <title>Smart Stock - Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase Libraries -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <!-- Export Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
+    <!-- LOGIN CONTAINER -->
     <div id="login-container" class="d-flex align-items-center justify-content-center vh-100 bg-light">
-        <div class="card shadow-lg p-4 custom-card" style="width: 100%; max-width: 400px;">
+        <div class="card shadow-lg p-4 border-0 rounded-4" style="width: 100%; max-width: 380px;">
             <div class="text-center mb-4">
-                <div class="brand-icon mx-auto mb-2"><i class="fa-solid fa-boxes-stacked"></i></div>
-                <h4 class="fw-bold">Smart Stock</h4>
-                <p class="text-muted small">Connexion au système</p>
+                <div class="brand-icon mx-auto mb-3"><i class="fa-solid fa-boxes-stacked"></i></div>
+                <h4 class="fw-bold text-dark">Smart Stock</h4>
+                <p class="text-muted small">Gestion de Stock Intelligent</p>
             </div>
             <form id="login-form">
                 <div class="mb-3">
-                    <label class="form-label">Identifiant</label>
+                    <label class="form-label small fw-bold">Identifiant</label>
                     <div class="input-group">
-                        <span class="input-group-text"><i class="fa-solid fa-user"></i></span>
-                        <input type="text" id="username" class="form-control" required>
+                        <span class="input-group-text bg-white"><i class="fa-solid fa-user text-muted"></i></span>
+                        <input type="text" id="username" class="form-control" placeholder="Entrez votre identifiant" required>
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Mot de passe</label>
+                    <label class="form-label small fw-bold">Mot de passe</label>
                     <div class="input-group">
-                        <span class="input-group-text"><i class="fa-solid fa-lock"></i></span>
-                        <input type="password" id="password" class="form-control" required>
+                        <span class="input-group-text bg-white"><i class="fa-solid fa-lock text-muted"></i></span>
+                        <input type="password" id="password" class="form-control" placeholder="••••••••" required>
                     </div>
                 </div>
-                <div id="login-error" class="alert alert-danger d-none p-2 small text-center">Identifiants incorrects</div>
-                <button type="submit" class="btn btn-primary w-100 mt-2"><i class="fa-solid fa-right-to-bracket me-2"></i>Se Connecter</button>
+                <div id="login-error" class="alert alert-danger d-none p-2 small text-center rounded-3">Identifiants incorrects</div>
+                <button type="submit" class="btn btn-primary w-100 py-2 mt-2 rounded-3 fw-bold"><i class="fa-solid fa-right-to-bracket me-2"></i>Se Connecter</button>
             </form>
         </div>
     </div>
 
+    <!-- MAIN APP CONTAINER -->
     <div id="app-container" class="d-none d-flex">
+        <!-- SIDEBAR -->
         <aside class="sidebar bg-dark text-white p-3">
             <div class="d-flex align-items-center mb-4 px-2">
                 <i class="fa-solid fa-boxes-stacked fs-4 text-primary me-2"></i>
@@ -63,50 +70,53 @@
                     <a href="#" class="nav-link text-white" data-section="settings"><i class="fa-solid fa-gear me-2"></i>Paramètres</a>
                 </li>
             </ul>
-            <hr class="my-3">
-            <button id="logout-btn" class="btn btn-outline-danger w-100 text-start"><i class="fa-solid fa-power-off me-2"></i>Déconnexion</button>
+            <hr class="my-3 border-secondary">
+            <button id="logout-btn" class="btn btn-outline-danger w-100 text-start rounded-3"><i class="fa-solid fa-power-off me-2"></i>Déconnexion</button>
         </aside>
 
+        <!-- CONTENT -->
         <main class="main-content flex-grow-1 p-4 bg-light">
+            <!-- DASHBOARD SECTION -->
             <section id="sec-dashboard" class="content-section">
                 <h3 class="fw-bold mb-4">Tableau de Bord</h3>
                 <div class="row g-3 mb-4">
                     <div class="col-md-4">
-                        <div class="card p-3 border-0 shadow-sm border-start border-primary border-4">
-                            <span class="text-muted small">Total Produits</span>
-                            <h2 id="dash-total-products" class="fw-bold mb-0">0</h2>
+                        <div class="card p-3 border-0 shadow-sm border-start border-primary border-4 rounded-3">
+                            <span class="text-muted small fw-bold">TOTAL PRODUITS</span>
+                            <h2 id="dash-total-products" class="fw-bold mb-0 mt-1">0</h2>
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <div class="card p-3 border-0 shadow-sm border-start border-success border-4">
-                            <span class="text-muted small">Valeur Totale du Stock</span>
-                            <h2 id="dash-total-value" class="fw-bold mb-0">0.00 DH</h2>
+                        <div class="card p-3 border-0 shadow-sm border-start border-success border-4 rounded-3">
+                            <span class="text-muted small fw-bold">VALEUR DU STOCK</span>
+                            <h2 id="dash-total-value" class="fw-bold mb-0 mt-1">0.00 DH</h2>
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <div class="card p-3 border-0 shadow-sm border-start border-warning border-4">
-                            <span class="text-muted small">Alerte Stock Faible</span>
-                            <h2 id="dash-low-stock" class="fw-bold mb-0">0</h2>
+                        <div class="card p-3 border-0 shadow-sm border-start border-warning border-4 rounded-3">
+                            <span class="text-muted small fw-bold">STOCK FAIBLE</span>
+                            <h2 id="dash-low-stock" class="fw-bold mb-0 mt-1">0</h2>
                         </div>
                     </div>
                 </div>
-                <div class="card border-0 shadow-sm p-3">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="fw-bold m-0">Exportation des Données</h5>
+                <div class="card border-0 shadow-sm p-3 rounded-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="fw-bold m-0">Exporter les Données</h6>
                         <div>
-                            <button id="export-excel" class="btn btn-outline-success btn-sm me-2"><i class="fa-solid fa-file-excel me-1"></i>Excel</button>
-                            <button id="export-pdf" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-file-pdf me-1"></i>PDF</button>
+                            <button id="export-excel" class="btn btn-outline-success btn-sm rounded-2 me-2"><i class="fa-solid fa-file-excel me-1"></i>Excel</button>
+                            <button id="export-pdf" class="btn btn-outline-danger btn-sm rounded-2"><i class="fa-solid fa-file-pdf me-1"></i>PDF</button>
                         </div>
                     </div>
                 </div>
             </section>
 
+            <!-- PRODUCTS SECTION -->
             <section id="sec-products" class="content-section d-none">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h3 class="fw-bold m-0">Gestion des Produits</h3>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#productModal"><i class="fa-solid fa-plus me-1"></i>Nouveau Produit</button>
+                    <button class="btn btn-primary rounded-3" data-bs-toggle="modal" data-bs-target="#productModal"><i class="fa-solid fa-plus me-1"></i>Nouveau Produit</button>
                 </div>
-                <div class="card border-0 shadow-sm p-3">
+                <div class="card border-0 shadow-sm p-3 rounded-3">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle">
                             <thead class="table-light">
@@ -125,76 +135,79 @@
                 </div>
             </section>
 
+            <!-- MOVEMENTS SECTION -->
             <section id="sec-movements" class="content-section d-none">
                 <h3 class="fw-bold mb-4">Entrées & Sorties</h3>
-                <div class="card border-0 shadow-sm p-4 mb-4" style="max-width: 600px;">
+                <div class="card border-0 shadow-sm p-4 rounded-3" style="max-width: 500px;">
                     <form id="movement-form">
                         <div class="mb-3">
-                            <label class="form-label">Sélectionner le Produit</label>
+                            <label class="form-label small fw-bold">Produit</label>
                             <select id="mov-product-id" class="form-select" required></select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Type de Mouvement</label>
+                            <label class="form-label small fw-bold">Type de Mouvement</label>
                             <select id="mov-type" class="form-select" required>
-                                <option value="IN">Entrée (Stock +)</option>
-                                <option value="OUT">Sortie (Stock -)</option>
+                                <option value="IN">Entrée (+ Stock)</option>
+                                <option value="OUT">Sortie (- Stock)</option>
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Quantité</label>
+                            <label class="form-label small fw-bold">Quantité</label>
                             <input type="number" id="mov-qty" class="form-control" min="1" required>
                         </div>
-                        <button type="submit" class="btn btn-success w-100"><i class="fa-solid fa-check me-1"></i>Valider le Mouvement</button>
+                        <button type="submit" class="btn btn-success w-100 rounded-3"><i class="fa-solid fa-check me-1"></i>Valider</button>
                     </form>
                 </div>
             </section>
 
+            <!-- SETTINGS SECTION -->
             <section id="sec-settings" class="content-section d-none">
-                <h3 class="fw-bold mb-4">Paramètres de Sécurité</h3>
-                <div class="card border-0 shadow-sm p-4" style="max-width: 500px;">
+                <h3 class="fw-bold mb-4">Paramètres</h3>
+                <div class="card border-0 shadow-sm p-4 rounded-3" style="max-width: 450px;">
                     <form id="settings-form">
                         <div class="mb-3">
-                            <label class="form-label">Nouvel Identifiant</label>
+                            <label class="form-label small fw-bold">Nouvel Identifiant</label>
                             <input type="text" id="set-username" class="form-control" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Nouveau Mot de passe</label>
+                            <label class="form-label small fw-bold">Nouveau Mot de passe</label>
                             <input type="password" id="set-password" class="form-control" required>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-floppy-disk me-1"></i>Enregistrer</button>
+                        <button type="submit" class="btn btn-primary w-100 rounded-3"><i class="fa-solid fa-floppy-disk me-1"></i>Enregistrer</button>
                     </form>
                 </div>
             </section>
         </main>
     </div>
 
+    <!-- MODAL ADD/EDIT PRODUCT -->
     <div class="modal fade" id="productModal" tabindex="-1">
         <div class="modal-dialog">
-            <div class="modal-content">
+            <div class="modal-content border-0 rounded-4 shadow">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Ajouter / Modifier Produit</h5>
+                    <h5 class="modal-title fw-bold">Produit</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <form id="product-form">
                         <input type="hidden" id="prod-id">
                         <div class="mb-3">
-                            <label class="form-label">Référence</label>
+                            <label class="form-label small fw-bold">Référence</label>
                             <input type="text" id="prod-ref" class="form-control" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Nom du Produit</label>
+                            <label class="form-label small fw-bold">Nom du Produit</label>
                             <input type="text" id="prod-name" class="form-control" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Prix (DH)</label>
+                            <label class="form-label small fw-bold">Prix (DH)</label>
                             <input type="number" step="0.01" id="prod-price" class="form-control" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Quantité Initiale</label>
+                            <label class="form-label small fw-bold">Quantité</label>
                             <input type="number" id="prod-qty" class="form-control" required>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100">Sauvegarder</button>
+                        <button type="submit" class="btn btn-primary w-100 rounded-3">Sauvegarder</button>
                     </form>
                 </div>
             </div>
